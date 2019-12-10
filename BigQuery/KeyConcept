@@ -1,0 +1,7 @@
+Use Python to interact with BigQuery
+1. Create dataset
+2. load data (csv, json...)
+3. Create Sechma
+4. Run Query
+5. Export to Cloud Storage
+
