@@ -1,0 +1,623 @@
+Recommend Products using ML with Cloud SQL and Dataproc
+1 hour 30 minutes
+1 Credit
+Rate Lab
+Overview
+In this lab, you populate rentals data in Cloud SQL for the rentals recommendation engine to use.
+
+What you learn
+In this lab, you will:
+
+Create Cloud SQL instance
+
+Create database tables by importing .sql files from Cloud Storage
+
+Populate the tables by importing .csv files from Cloud Storage
+
+Allow access to Cloud SQL
+
+Explore the rentals data using SQL statements from CloudShell
+
+Setup and requirements
+Qwiklabs setup
+Before you click the Start Lab button
+Read these instructions. Labs are timed and you cannot pause them. The timer, which starts when you click Start Lab, shows how long Cloud resources will be made available to you.
+
+This Qwiklabs hands-on lab lets you do the lab activities yourself in a real cloud environment, not in a simulation or demo environment. It does so by giving you new, temporary credentials that you use to sign in and access the Google Cloud Platform for the duration of the lab.
+
+What you need
+To complete this lab, you need:
+
+Access to a standard internet browser (Chrome browser recommended).
+Time to complete the lab.
+Note: If you already have your own personal GCP account or project, do not use it for this lab.
+
+Google Cloud Platform Console
+How to start your lab and sign in to the Console
+Click the Start Lab button. If you need to pay for the lab, a pop-up opens for you to select your payment method. On the left is a panel populated with the temporary credentials that you must use for this lab.
+
+Open Google Console
+
+Copy the username, and then click Open Google Console. The lab spins up resources, and then opens another tab that shows the Choose an account page.
+
+Tip: Open the tabs in separate windows, side-by-side.
+
+On the Choose an account page, click Use Another Account.
+
+Choose an account
+
+The Sign in page opens. Paste the username that you copied from the Connection Details panel. Then copy and paste the password.
+
+Important: You must use the credentials from the Connection Details panel. Do not use your Qwiklabs credentials. If you have your own GCP account, do not use it for this lab (avoids incurring charges).
+
+Click through the subsequent pages:
+
+Accept the terms and conditions.
+Do not add recovery options or two-factor authentication (because this is a temporary account).
+Do not sign up for free trials.
+After a few moments, the GCP console opens in this tab.
+
+Note: You can view the menu with a list of GCP Products and Services by clicking the Navigation menu at the top-left, next to “Google Cloud Platform”. Cloud Console Menu
+Introduction
+In this lab, you populate rentals data in Cloud SQL for the rentals recommendation engine to use. The recommendations engine itself will run on Dataproc using Spark ML.
+
+Create Cloud SQL instance
+In the GCP console, click SQL (in the Storage section).
+
+Click Create instance.
+
+Choose MySQL. Click Next if required.
+
+For Instance ID, type rentals.
+
+ab1cdf08212ecadf.png
+
+Scroll down and specify a root password. Before you forget, note down the root password.
+
+Click Create to create the instance. It will take a minute or so for your Cloud SQL instance to be provisioned.
+
+Create tables
+While you wait for your instance to be created, read the below mySQL script and answer the questions that follow below
+
+CREATE DATABASE IF NOT EXISTS recommendation_spark;
+
+USE recommendation_spark;
+
+DROP TABLE IF EXISTS Recommendation;
+DROP TABLE IF EXISTS Rating;
+DROP TABLE IF EXISTS Accommodation;
+
+CREATE TABLE IF NOT EXISTS Accommodation
+(
+  id varchar(255),
+  title varchar(255),
+  location varchar(255),
+  price int,
+  rooms int,
+  rating float,
+  type varchar(255),
+  PRIMARY KEY (ID)
+);
+
+CREATE TABLE  IF NOT EXISTS Rating
+(
+  userId varchar(255),
+  accoId varchar(255),
+  rating int,
+  PRIMARY KEY(accoId, userId),
+  FOREIGN KEY (accoId)
+    REFERENCES Accommodation(id)
+);
+
+CREATE TABLE  IF NOT EXISTS Recommendation
+(
+  userId varchar(255),
+  accoId varchar(255),
+  prediction float,
+  PRIMARY KEY(userId, accoId),
+  FOREIGN KEY (accoId)
+    REFERENCES Accommodation(id)
+);
+
+SHOW DATABASES;
+How many tables will this script create?
+
+2
+
+3
+
+1
+
+When a user rates a house (giving it four stars for example), an entry is added to the _______ table.
+
+Recommendation
+
+Rating
+
+Accommodation
+
+General information about houses, such as the number of rooms they have and their average rating is stored in the _________ table.
+
+Recommendation
+
+Rating
+
+Accommodation
+
+The job of the recommendation engine is to fill out the ___________ table for each user and house: this is the predicted rating of that house by that user.
+
+Recommendation
+
+Rating
+
+Accommodation
+
+In Cloud SQL, click rentals to view instance information.
+
+Connect to the database
+Find the Connect to this instance box on the page and click on connect using Cloud Shell
+Note: You could also connect to your instance from a dedicated Cloud Compute Engine VM but for now we'll have Cloud Shell create a micro-VM for us and operate from there.
+
+Wait for Cloud Shell to load
+
+Once Cloud Shell loads, you will see the below command already typed:
+
+gcloud sql connect rentals --user=root --quiet
+
+Hit Enter
+
+Wait for your IP Address to be whitelisted
+
+Whitelisting your IP for incoming connection for 5 minutes...⠹
+
+When prompted, enter your password and hit Enter (note: you will not see your password typed in or even ****)
+You can now run commands against your database! mysql-connection.png
+
+Run the below command
+SHOW DATABASES;
+You should see the default system databases:
+
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| performance_schema |
+| sys                |
++--------------------+
+
+Note: You must always end your mySQL commands with a semi-colon ;
+
+Copy and paste the below SQL statement you analyzed earlier paste it into the command line
+
+CREATE DATABASE IF NOT EXISTS recommendation_spark;
+
+USE recommendation_spark;
+
+DROP TABLE IF EXISTS Recommendation;
+DROP TABLE IF EXISTS Rating;
+DROP TABLE IF EXISTS Accommodation;
+
+CREATE TABLE IF NOT EXISTS Accommodation
+(
+  id varchar(255),
+  title varchar(255),
+  location varchar(255),
+  price int,
+  rooms int,
+  rating float,
+  type varchar(255),
+  PRIMARY KEY (ID)
+);
+
+CREATE TABLE  IF NOT EXISTS Rating
+(
+  userId varchar(255),
+  accoId varchar(255),
+  rating int,
+  PRIMARY KEY(accoId, userId),
+  FOREIGN KEY (accoId)
+    REFERENCES Accommodation(id)
+);
+
+CREATE TABLE  IF NOT EXISTS Recommendation
+(
+  userId varchar(255),
+  accoId varchar(255),
+  prediction float,
+  PRIMARY KEY(userId, accoId),
+  FOREIGN KEY (accoId)
+    REFERENCES Accommodation(id)
+);
+
+SHOW DATABASES;
+Hit Enter
+
+Confirm you see recommendation_spark as a database now:
+
++----------------------+
+| Database             |
++----------------------+
+| information_schema   |
+| mysql                |
+| performance_schema   |
+| recommendation_spark |
+| sys                  |
++----------------------+
+
+Run the following command to show our tables
+USE recommendation_spark;
+
+SHOW TABLES;
+Hit Enter
+
+Confim you see the three tables:
+
++--------------------------------+
+| Tables_in_recommendation_spark |
++--------------------------------+
+| Accommodation                  |
+| Rating                         |
+| Recommendation                 |
++--------------------------------+
+
+Run the following query
+SELECT * FROM Accommodation;
+How many rows are in the Accommodation table?
+
+Empty set (0)
+
+100
+
+1,000
+
+Stage Data in Google Cloud Storage
+Option 1: Use Command Line
+Open a new Cloud Shell tab (do not use your existing mySQL Cloud Shell tab)
+
+Paste in the below command
+
+echo "Creating bucket: gs://$DEVSHELL_PROJECT_ID"
+gsutil mb gs://$DEVSHELL_PROJECT_ID
+
+echo "Copying data to our storage from public dataset"
+gsutil cp gs://cloud-training/bdml/v2.0/data/accommodation.csv gs://$DEVSHELL_PROJECT_ID
+gsutil cp gs://cloud-training/bdml/v2.0/data/rating.csv gs://$DEVSHELL_PROJECT_ID
+
+echo "Show the files in our bucket"
+gsutil ls gs://$DEVSHELL_PROJECT_ID
+
+echo "View some sample data"
+gsutil cat gs://$DEVSHELL_PROJECT_ID/accommodation.csv
+Hit Enter
+
+Option 2: Use Console UI
+Skip these steps if you already have loaded your data using the command line
+
+Navigate to Storage and select Storage > Browser
+
+Click Create Bucket (if one does not already exist)
+
+Specify your project name as the bucket name
+
+Click Create
+
+Download the below files locally and then upload them inside of your new bucket:
+
+accommodation.csv
+
+rating.csv
+
+Loading Data from Google Cloud Storage into Cloud SQL tables
+Navigate back to SQL
+
+Click on rentals
+
+Import accommodation data
+Click Import (top menu).
+
+Specify the following:
+
+Cloud Storage file: Browse to select accommodation.csv
+
+Format of import: CSV
+
+Database: select recommendation_spark from the drop down
+
+Table: copy and paste: Accommodation
+
+Click Import
+import-acc-dataset
+
+You will be redirected back to the Overview page. Wait one minute for the data to load.
+
+Import user rating data
+Click Import (top menu).
+
+Specify the following:
+
+Cloud Storage file: Browse to select rating.csv
+
+Format of import: CSV
+
+Database: select recommendation_spark from the drop down
+
+Table: copy and paste: Rating
+
+Click Import
+
+You will be redirected back to the Overview page. Wait one minute for the data to load.
+
+Explore Cloud SQL data
+If you closed your Cloud Shell connection to mySQL, open it again by finding Connect to this instance and clicking Connect using Cloud Shell
+
+Hit enter when prompted to login
+
+Provide your password and hit enter
+
+Query the ratings data:
+
+USE recommendation_spark;
+
+SELECT * FROM Rating
+LIMIT 15;
+Use a SQL aggregation function to count the number of rows in the table
+SELECT COUNT(*) AS num_ratings
+FROM Rating;
+How many ratings do we have in our table?
+
+1186
+
+100,000
+
+5,203
+
+What's the average review of our accommodations?
+SELECT
+    COUNT(userId) AS num_ratings,
+    COUNT(DISTINCT userId) AS distinct_user_ratings,
+    MIN(rating) AS worst_rating,
+    MAX(rating) AS best_rating,
+    AVG(rating) AS avg_rating
+FROM Rating;
+What is the average rating across all reviews?
+
+2.46
+
+5.0
+
+4.51
+
+What does the 25 for distinct_user_ratings mean?
+
+There are 25 ratings per accommodation
+
+There are 25 ratings per user
+
+There are 25 unique users who provided the ratings
+
+In machine learning, we will need a rich history of user preferences for the model to learn from. Run the below query to see which users have provided the most ratings
+
+SELECT
+    userId,
+    COUNT(rating) AS num_ratings
+FROM Rating
+GROUP BY userId
+ORDER BY num_ratings DESC;
+How many reviews did the top user leave?
+
+100
+
+75
+
+50
+
+You may exit the mysql prompt by typing exit.
+Stop here if you are done. Wait for instructions from the Instructor before going into the next section
+Generating housing recommendations with Machine Learning using Cloud Dataproc
+In this lab, you carry out recommendations machine learning using Dataproc.
+
+What you learn
+In this lab, you will:
+
+Launch Dataproc
+
+Run SparkML jobs using Dataproc
+
+Introduction
+In this lab, you use Dataproc to train the recommendations machine learning model based on users' previous ratings. You then apply that model to create a list of recommendations for every user in the database.
+
+In this lab, you will:
+
+Launch Dataproc
+
+Train and apply ML model written in PySpark to create product recommendations
+
+Explore inserted rows in Cloud SQL
+
+Launch Dataproc
+To launch Dataproc and configure it so that each of the machines in the cluster can access Cloud SQL:
+
+In the GCP Console, on the Navigation menu (Navigation menu), click SQL and note the region of your Cloud SQL instance:
+
+fc8f254ae64a75b4.png
+
+In the snapshot above, the region is us-central1.
+
+In the GCP Console, on the Navigation menu (Navigation menu), click Dataproc and click Enable API if prompted.
+
+Once enabled, click Create cluster and name your cluster rentals
+
+Select Region as global and change the Zone to us-central1-a (in the same zone as your Cloud SQL instance). This will minimize network latency between the cluster and the database.
+
+For Master node, for Machine type, select 2 vCPUs (n1-standard-2).
+
+For Worker nodes, for Machine type, select 2 vCPUs (n1-standard-2).
+
+Leave all other values with their default and click Create. It will take 1-2 minutes to provision your cluster.
+
+Note the Name, Zone and Total worker nodes in your cluster.
+
+Copy and paste the below bash script into your Cloud Shell (optionally change CLUSTER, ZONE, NWORKERS if necessary before running)
+
+echo "Authorizing Cloud Dataproc to connect with Cloud SQL"
+CLUSTER=rentals
+CLOUDSQL=rentals
+ZONE=us-central1-a
+NWORKERS=2
+
+machines="$CLUSTER-m"
+for w in `seq 0 $(($NWORKERS - 1))`; do
+   machines="$machines $CLUSTER-w-$w"
+done
+
+echo "Machines to authorize: $machines in $ZONE ... finding their IP addresses"
+ips=""
+for machine in $machines; do
+    IP_ADDRESS=$(gcloud compute instances describe $machine --zone=$ZONE --format='value(networkInterfaces.accessConfigs[].natIP)' | sed "s/\[u'//g" | sed "s/'\]//g" )/32
+    echo "IP address of $machine is $IP_ADDRESS"
+    if [ -z  $ips ]; then
+       ips=$IP_ADDRESS
+    else
+       ips="$ips,$IP_ADDRESS"
+    fi
+done
+
+echo "Authorizing [$ips] to access cloudsql=$CLOUDSQL"
+gcloud sql instances patch $CLOUDSQL --authorized-networks $ips
+Hit enter then, when prompted, type Y, then enter again to continue
+
+Wait for the patching to complete. You will see
+
+Patching Cloud SQL instance...done.
+
+Lastly, on the main Cloud SQL page, under Connect to this instance copy your Public IP Address to your clipboard (or write it down, we're using it next)
+copy-instance-ip
+
+Run ML model
+To create a trained model and apply it to all the users in the system:
+
+Your data science team has created a recommendation model using Apache Spark and written in Python. Let's copy it over into our staging bucket.
+
+Copy over the model code by executing the below in Cloud Shell
+gsutil cp gs://cloud-training/bdml/v2.0/model/train_and_apply.py train_and_apply.py
+cloudshell edit train_and_apply.py
+When prompted, select Open in Editor
+
+Wait for the Editor UI to load
+
+In train_and_apply.py, find line 30: CLOUDSQL_INSTANCE_IP and paste your Cloud SQL IP address you copied earlier
+
+# MAKE EDITS HERE
+CLOUDSQL_INSTANCE_IP = '<paste-your-cloud-sql-ip-here>'   # <---- CHANGE (database server IP)
+CLOUDSQL_DB_NAME = 'recommendation_spark' # <--- leave as-is
+CLOUDSQL_USER = 'root'  # <--- leave as-is
+CLOUDSQL_PWD  = '<type-your-cloud-sql-password-here>'  # <---- CHANGE
+Find line 33: CLOUDSQL_PWD and type in your Cloud SQL password
+
+The editor will autosave but to be sure, select File > Save
+
+Copy this file to your Cloud Storage bucket using this Cloud Shell command:
+
+gsutil cp train_and_apply.py gs://$DEVSHELL_PROJECT_ID
+Run your ML job on Dataproc
+In the Dataproc console, click Jobs.
+
+8508ce301ff584c3.png
+
+Click Submit job.
+
+For Job type, select PySpark and for Main python file, specify the location of the Python file you uploaded to your bucket. Your <bucket-name> is likely your Project Id when you can find by clicking on the Project Id dropdown in the top navigation menu.
+
+e15bafe2c29956b5.png
+
+gs://<bucket-name>/train_and_apply.py
+
+Click Submit
+
+Note: It will take up to 5 minutes for the job to change from Running to Succeeded. You can continue to the next section on querying the results while the job runs.
+
+If the job Failed, please troubleshoot using the logs and fix the errors. You may need to re-upload the changed Python file to Cloud Storage and clone the failed job to resubmit.
+
+Explore inserted rows with SQL
+In a new browser tab, open SQL (in the Storage section).
+
+Click rentals to view details related to your Cloud SQL instance.
+
+Under Connect to this instance section, click Connect using Cloud Shell. This will start new Cloudshell tab. In Cloudshell tab press enter.
+
+It will take few minutes to whitelist your IP for incoming connection.
+
+When prompted, type the root password you configured, then enter.
+
+At the mysql prompt, type:
+
+USE recommendation_spark;
+
+SELECT COUNT(*) AS count FROM Recommendation;
+If you are getting an Empty Set (0) - wait for your Dataproc job to complete. If it's been more than 5 minutes, your job has likely failed and will require troubleshooting.
+
+Tip: You can use the up arrow in Cloud Shell to return your previous command (or query in this case)
+
+How many recommendations did the model provide?
+
+100
+
+50
+
+125
+
+Find the recommendations for a user:
+
+SELECT
+    r.userid,
+    r.accoid,
+    r.prediction,
+    a.title,
+    a.location,
+    a.price,
+    a.rooms,
+    a.rating,
+    a.type
+FROM Recommendation as r
+JOIN Accommodation as a
+ON r.accoid = a.id
+WHERE r.userid = 10;
+Confirm against the below result:
+
++--------+--------+------------+-----------------------------+...
+| userid | accoid | prediction | title                       |...
++--------+--------+------------+-----------------------------+...
+| 10     | 40     |  1.9717555 | Colossal Private Castle     |...
+| 10     | 46     |  1.7060381 | Colossal Private Castle     |...
+| 10     | 74     |  1.4713808 | Giant Calm Fort             |...
+| 10     | 77     |  1.4085547 | Great Private Country House |...
+| 10     | 43     |  1.3759944 | Nice Private Hut            |...
++--------+--------+------------+-----------------------------+...
+
+These are the five accommodations that we would recommend to her. Note that the quality of the recommendations are not great because our dataset was so small (note that the predicted ratings are not very high). Still, this lab illustrates the process you'd go through to create product recommendations.
+
+Congratulations!
+Recap:
+Created a fully-managed Cloud SQL instance for rentals
+Created tables and explored the schema with SQL
+Ingested data from CSVs
+Edited and ran a Spark ML job on Cloud Dataproc
+Viewed prediction results
+End your lab
+When you have completed your lab, click End Lab. Qwiklabs removes the resources you’ve used and cleans the account for you.
+
+You will be given an opportunity to rate the lab experience. Select the applicable number of stars, type a comment, and then click Submit.
+
+The number of stars indicates the following:
+
+1 star = Very dissatisfied
+2 stars = Dissatisfied
+3 stars = Neutral
+4 stars = Satisfied
+5 stars = Very satisfied
+You can close the dialog box if you don't want to provide feedback.
+
+For feedback, suggestions, or corrections, please use the Support tab.
+
+Copyright 2019 Google LLC All rights reserved. Google and the Google logo are trademarks of Google LLC. All other company and product names may be trademarks of the respective companies with which they are associated.
