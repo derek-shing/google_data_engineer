@@ -1,0 +1,277 @@
+Classify Images with Pre-built ML Models using Cloud Vision API and AutoML
+2 hours 50 minutes
+1 Credit
+Rate Lab
+Overview
+In this lab you will upload images to Cloud Storage and use them to train a custom model to recognize different types of clouds (cumulus, cumulonimbus, etc.).
+
+What you learn
+In this lab, you learn how to:
+
+Upload a labeled dataset to Google Cloud Storage and connect it to AutoML Vision with a CSV label file.
+
+Train a model with AutoML Vision and evaluate its accuracy.
+
+Generate predictions on your trained model.
+
+Setup and requirements
+Qwiklabs setup
+Before you click the Start Lab button
+Read these instructions. Labs are timed and you cannot pause them. The timer, which starts when you click Start Lab, shows how long Cloud resources will be made available to you.
+
+This Qwiklabs hands-on lab lets you do the lab activities yourself in a real cloud environment, not in a simulation or demo environment. It does so by giving you new, temporary credentials that you use to sign in and access the Google Cloud Platform for the duration of the lab.
+
+What you need
+To complete this lab, you need:
+
+Access to a standard internet browser (Chrome browser recommended).
+Time to complete the lab.
+Note: If you already have your own personal GCP account or project, do not use it for this lab.
+
+Google Cloud Platform Console
+How to start your lab and sign in to the Console
+Click the Start Lab button. If you need to pay for the lab, a pop-up opens for you to select your payment method. On the left is a panel populated with the temporary credentials that you must use for this lab.
+
+Open Google Console
+
+Copy the username, and then click Open Google Console. The lab spins up resources, and then opens another tab that shows the Choose an account page.
+
+Tip: Open the tabs in separate windows, side-by-side.
+
+On the Choose an account page, click Use Another Account.
+
+Choose an account
+
+The Sign in page opens. Paste the username that you copied from the Connection Details panel. Then copy and paste the password.
+
+Important: You must use the credentials from the Connection Details panel. Do not use your Qwiklabs credentials. If you have your own GCP account, do not use it for this lab (avoids incurring charges).
+
+Click through the subsequent pages:
+
+Accept the terms and conditions.
+Do not add recovery options or two-factor authentication (because this is a temporary account).
+Do not sign up for free trials.
+After a few moments, the GCP console opens in this tab.
+
+Note: You can view the menu with a list of GCP Products and Services by clicking the Navigation menu at the top-left, next to “Google Cloud Platform”. Cloud Console Menu
+Set up AutoML Vision
+AutoML Vision provides an interface for all the steps in training an image classification model and generating predictions on it. Start by enabling the Cloud AutoML API.
+
+Open the navigation menu and and select APIs & Services > Library. In the search bar type in "Cloud AutoML API". Click on the Cloud AutoML API result and then click ENABLE.
+
+This may take a minute. You should now be on the following page (ensure that the MANAGE button appears and API enabled is also displayed):
+
+AutoMLEnabled.png
+
+Next you will need to issue each of the commands that below appear in the GCP Console. In Cloud Shell paste these commands to create environment variables for your Project ID and Qwiklabs Username, replacing <QWIKLABS_USERNAME> with the user name you logged into the lab with:
+
+export PROJECT_ID=$DEVSHELL_PROJECT_ID
+export QWIKLABS_USERNAME=<QWIKLABS_USERNAME>
+
+Now, create a Storage Bucket for the images you will use in testing. Create one by running the following command:
+
+gsutil mb -p $PROJECT_ID \
+    -c regional    \
+    -l us-central1 \
+    gs://$PROJECT_ID-vcm/
+
+Leave your Cloud Shell window open for additional steps to follow.
+
+Now open a new browser tab and navigate to the AutoML UI. Select your lab credentials and click Allow to log in.
+
+AutoMLCredentials.png
+
+Note for Chrome users: If you have trouble seeing this page, log out of your current Chrome user profile and try to open it again.
+
+You are prompted to specify a Google Cloud project. Select your Qwiklabs Project ID from the dropdown menu and click CONTINUE:
+
+select-project.png
+
+Click the SET UP NOW button. This step will take from 1 to 3 minutes.
+
+You will be taken to the AutoML Vision Datasets page once the APIs are verified.
+
+setupnow.png automl.png
+
+Upload training images to Google Cloud Storage
+In order to train a model to classify images of clouds, you need to provide labeled training data so the model can develop an understanding of the image features associated with different types of clouds. In this example your model will learn to classify three different types of clouds: cirrus, cumulus, and cumulonimbus. To use AutoML Vision you need to put your training images in Google Cloud Storage.
+
+In the GCP console, open the Navigation menu and select Storage > Browser:
+
+b91e6a77309137cf.png
+
+Once there, you should see the bucket from the last step.
+
+Before you add the cloud images, create an environment variable with the name of your bucket by running the following command in Cloud Shell, replacing YOUR_BUCKET_NAME in the command below with the name of your bucket:
+
+export BUCKET=YOUR_BUCKET_NAME
+
+The training images are publicly available in a Cloud Storage bucket. Use the gsutil command line utility for Cloud Storage to copy the training images into your bucket:
+
+gsutil -m cp -r gs://automl-codelab-clouds/* gs://${BUCKET}
+
+When the images finish copying, click the Refresh button at the top of the Cloud Storage browser. Then click on your bucket name. You should see 3 folders of photos for each of the 3 different cloud types to be classified:
+
+autoML_bucket_folders.png
+
+If you click on the individual image files in each folder, and then click once more when you see the URL, you can see the photos you'll be using to train your model for each type of cloud.
+
+Create a dataset
+Now that your training data is in Cloud Storage, you need a way for AutoML Vision to access it. You'll create a CSV file where each row contains a URL to a training image and the associated label for that image. This CSV file has been created for you; you just need to update it with your bucket name.
+
+Run the following command to copy the file to your Cloud Shell instance:
+
+gsutil cp gs://automl-codelab-metadata/data.csv .
+
+Then update the CSV with the files in your project:
+
+sed -i -e "s/placeholder/${BUCKET}/g" ./data.csv
+
+Now you're ready to upload this file to your Cloud Storage bucket:
+
+gsutil cp ./data.csv gs://${BUCKET}
+
+Once that comand completes, click the Refresh bucket button. Confirm that you see the data.csv file in your bucket.
+
+csvfile.png
+
+Navigate back to the AutoML Vision Datasets page.
+
+automl.png
+
+At the top of the console, click + NEW DATASET.
+
+Type "clouds" for the Dataset name.
+
+Leave "Single-label Classification" checked.
+
+Click CREATE DATASET to continue
+
+dataset1.png
+
+On the next screen you will choose the location of your training images (the ones you uploaded in the previous step)
+
+Choose Select a CSV file on Cloud Storage and add the file name to the URL for the file you just uploaded - gs://your-project-name-vcm/data.csv. You may also use the browse function to find the csv file. Once you see the white in green checkbox you may select CONTINUE to proceed.
+
+datasetfiles.png
+
+It will take around 15 to 25 minutes for your images to import and be aligned with their categories. Once the import has completed you'll be returned to the "Select files to import page", click the IMAGES tab to see the images in your dataset.
+
+Inspect images
+Next proceed with a brief examination of the images.
+
+imagesinspection.png
+
+Try filtering by different labels in the left menu (i.e. click cumulus) to review the training images:
+
+44f615aeaccfdd8e.png
+
+Note: If you were building a production model, you'd want at least 100 images per label to ensure high accuracy. This is just a demo so only 20 images of each type were used so the model could train quickly.
+
+If any images are labeled incorrectly you can click on them to switch the label or delete the image from your training set:
+
+imagedetail.png
+
+To see a summary of how many images you have for each label, click on LABEL STATS. You should see the following pop-out box show up on the right side of your browser. Press DONE after reviewing the list.
+
+labelstats.png
+
+Note: If you are working with a dataset that isn't already labeled, AutoML Vision provides an in-house human labeling service.
+
+Train your model
+You're ready to start training your model! AutoML Vision handles this for you automatically, without requiring you to write any of the model code.
+
+To train your clouds model, go to the TRAIN tab and click START TRAINING.
+
+starttraining.png
+
+Enter a name for your model, or use the default auto-generated name.
+
+Leave Cloud hosted selected and click CONTINUE.
+
+train1.png
+
+For the next step, type the value "8" into the Budget * box and check "Deploy model to 1 node after training." This process (auto-deploy) will make your model immediately available for predictions after testing is complete.
+
+Click START TRAINING.
+
+SetBudget8.png
+
+Training this dataset will take around 55 to 90 minutes to complete. The total training time includes node training time as well as infrastructure set up and tear down.
+
+Evaluate your model
+After training is complete, click on the EVALUATE tab. Here you'll see information about Precision and Recall of the model. It should resemble the following:
+
+evaluatetab.png
+
+You can also adjust the Confidence threshold slider to see its impact.
+
+Finally, scroll down to take a look at the Confusion matrix.
+
+confusionmatrix.png
+
+This tab provides some common machine learning metrics to evaluate your model accuracy and see where you can improve your training data. Since the focus for this lab was not on accuracy, move on to the next section about predictions section. Feel free to browse the accuracy metrics on your own.
+
+Generate predictions
+Now it's time for the most important part: generating predictions on your trained model using data it hasn't seen before.
+
+There are a few ways to generate predictions. In this lab you'll use the UI to upload images. You'll see how your model does classifying these two images (the first is a cirrus cloud, the second is a cumulonimbus).
+
+First, download these images to your local machine by right-clicking on each of them (Note: You may want to assign a simple name like 'Image1' and 'Image2' to assist with uploading later):
+
+a4e6d50183e83703.png
+
+1d4aaa17ec62e9ba.png
+
+Navigate to the TEST & USE tab in the AutoML UI:
+
+On this page you will see that the model you just trained and deployed is listed in the "Model" pick list.
+
+Click UPLOAD IMAGES and upload the cloud sample images you just saved to your local disk (you may select both images at the same time).
+
+testanduse.png
+
+When the prediction request completes you should see something like the following:
+
+output1.png
+
+output2.png
+
+Excellent - the model classified each type of cloud correctly!
+
+Congratulations!
+You've learned how to train your own custom machine learning model and generate predictions on it through the web UI. Now you've got what it takes to train a model on your own image dataset.
+
+What was covered
+Uploading training images to Cloud Storage and creating a CSV for AutoML Vision to find these images.
+
+Reviewing labels and training a model in the AutoML Vision UI.
+
+Generating predictions on new cloud images.
+
+Next steps / learn more
+Watch the intro video
+Learn more about how AutoML Vision works by listening to the GCP Podcast episode
+Read the announcement blog post
+Learn how to perform each step with the API
+End your lab
+When you have completed your lab, click End Lab. Qwiklabs removes the resources you’ve used and cleans the account for you.
+
+You will be given an opportunity to rate the lab experience. Select the applicable number of stars, type a comment, and then click Submit.
+
+The number of stars indicates the following:
+
+1 star = Very dissatisfied
+2 stars = Dissatisfied
+3 stars = Neutral
+4 stars = Satisfied
+5 stars = Very satisfied
+You can close the dialog box if you don't want to provide feedback.
+
+For feedback, suggestions, or corrections, please use the Support tab.
+
+Manual Last Updated: December 13, 2019
+
+Lab Last Tested: December 13, 2019
+
+Copyright 2019 Google LLC All rights reserved. Google and the Google logo are trademarks of Google LLC. All other company and product names may be trademarks of the respective companies with which they are associated.
