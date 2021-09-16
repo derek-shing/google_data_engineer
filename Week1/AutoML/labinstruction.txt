@@ -1,0 +1,126 @@
+Classifying Images of Clouds in the Cloud with AutoML Vision
+
+Overview
+In this lab, you upload images to Cloud Storage and use them to train a custom model to recognize different types of clouds (cumulus, cumulonimbus, etc.).
+
+What you learn
+In this lab, you learn how to perform the following tasks:
+
+Upload a labeled dataset to Cloud Storage and connect it to AutoML Vision with a CSV label file
+
+Train a model with AutoML Vision and evaluate its accuracy
+
+Generate predictions on your trained model
+
+Task 1. Set up AutoML Vision
+AutoML Vision provides an interface for all the steps in training an image classification model and generating predictions on it. Start by enabling the AutoML API.
+
+Open the navigation menu and and select APIs & Services > Library. In the search bar type in "Cloud AutoML API". Click on the Cloud AutoML API result and then click Enable.
+
+This may take a minute. You should now be on the following page (ensure that the Activation Status is Enabled):
+
+
+Create a Cloud Storage bucket for your training data
+On the GCP Console title bar, click Activate Cloud Shell (Cloud_shell.png).
+When prompted, click Continue.
+In Cloud Shell, paste the below command to make a new bucket to hold your training. We use the magic variable $DEVSHELL_PROJECT_ID, which knows your current project, and simply add -vcm to the end.
+
+Run the below command in Cloud Shell:
+
+gsutil mb -p $DEVSHELL_PROJECT_ID \
+    -c regional    \
+    -l us-central1 \
+    gs://$DEVSHELL_PROJECT_ID-vcm/
+
+
+
+
+
+    Task 2. Upload training images to Cloud Storage
+    In order to train a model to classify images of clouds, you need to provide labeled training data so the model can develop an understanding of the image features associated with different types of clouds. In this example, your model will learn to classify three different types of clouds: cirrus, cumulus, and cumulonimbus. To use AutoML Vision you need to put your training images in Cloud Storage.
+
+    In the Cloud Console, open the Navigation menu and select Cloud Storage > Browser:
+
+    Once there, you should see the bucket from the last step.
+
+    The training images are publicly available in a Cloud Storage bucket. Use the gsutil command-line utility for Cloud Storage to copy the training images into your bucket:
+
+
+
+    Once there, you should see the bucket from the last step.
+
+    The training images are publicly available in a Cloud Storage bucket. Use the gsutil command-line utility for Cloud Storage to copy the training images into your bucket:
+
+gsutil -m cp -r gs://cloud-training/automl-lab-clouds/* gs://$DEVSHELL_PROJECT_ID-vcm/
+
+
+Once copying is complete you can view the three types of clouds you have images for:
+
+gsutil ls gs://$DEVSHELL_PROJECT_ID-vcm/
+
+
+Task 3. Create an AutoML Vision training dataset
+Now that your training data is in Cloud Storage, you need a way for AutoML Vision to access it. You'll create a CSV file where each row contains a URL to a training image and the associated label for that image. This CSV file has been created for you; you just need to update it with your bucket name.
+
+Run the following commands which:
+
+Copy the template file to your Cloud Shell instance
+
+Update the CSV with the files in your project
+
+Upload this file to your Cloud Storage bucket
+
+Show the bucket to confirm the data.csv file is present
+
+gsutil cp gs://cloud-training/automl-lab-clouds/data.csv .
+head --lines=10 data.csv
+sed -i -e "s/placeholder/$DEVSHELL_PROJECT_ID-vcm/g" ./data.csv
+head --lines=10 data.csv
+gsutil cp ./data.csv gs://$DEVSHELL_PROJECT_ID-vcm/
+gsutil ls gs://$DEVSHELL_PROJECT_ID-vcm/
+
+Highlight and copy the location of your data file to your clipboard which will look similar to: gs://qwiklabs-gcp-your-project-id-will-be-here-vcm/data.csv
+
+Navigate back to the AutoML Vision datasets page.
+
+At the top of the Cloud Console, click + New dataset.
+
+Type clouds for the dataset name.
+
+Leave Single-label Classification checked.
+
+Click Create dataset to continue.
+
+On the next screen you will choose the location of your training images (the ones you uploaded in the previous step).
+
+Choose Select a CSV file on Cloud Storage and add the file name to the URL for the file that is in your clipboard from the previous step. You may also use the browse function to find the csv file. Once you see the white in green checkbox you may select Continue to proceed.
+
+
+
+Once the import has completed click the Images tab to see the images in your dataset.
+
+It will take 8 to 12 minutes while the image metadata is processed ("Running: Importing Images" will appear on the screen). Once complete, the images will appear by category.
+
+Task 4. Inspect the images
+Next, proceed with a brief examination of the images.
+
+Try filtering by different labels in the left menu (i.e. click cumulus) to review the training images:
+
+If any images are labeled incorrectly you can click on them to switch the label or delete the image from your training set:
+
+To see a summary of how many images you have for each label, click on Label stats. You should see the following pop-out box show up on the right side of your browser. Press Done after reviewing the list.
+
+Task 5. Train your model
+You're ready to start training your model! AutoML Vision handles this for you automatically, without requiring you to write any of the model code.
+
+To train your clouds model, go to the Train tab and click Start training.
+
+Enter a name for your model, or use the default auto-generated name.
+
+Leave Cloud hosted selected and click Continue.
+
+For the next step, type the value "8" into the Set your budget * box and check Deploy model to 1 node after training. This process (auto-deploy) will make your model immediately available for predictions after testing is complete.
+
+Click Start training.
+
+    
