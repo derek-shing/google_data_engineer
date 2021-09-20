@@ -1,0 +1,210 @@
+Working with JSON and Array data in BigQuery
+
+Overview
+BigQuery is Google's fully managed, NoOps, low cost analytics database. With BigQuery you can query terabytes and terabytes of data without having any infrastructure to manage or needing a database administrator. BigQuery uses SQL and can take advantage of the pay-as-you-go model. BigQuery allows you to focus on analyzing data to find meaningful insights.
+
+This lab is an in-depth walkthrough of working with semi-structured data (ingesting JSON, Array data types) inside of BigQuery. Denormalizing your schema into a single table with nested and repeated fields can yield performance improvements, but the SQL syntax for working with array data can be tricky. You will practice loading, querying, troubleshooting, and unnesting various semi-structured datasets.
+
+Objectives
+In this lab, you learn about the following:
+
+Loading semi-structured JSON into BigQuery
+
+Creating and querying arrays
+
+Creating and querying structs
+
+Querying nested and repeated fields
+
+
+Loading semi-structured JSON into BigQuery
+
+Create a new table in the fruit_store data set.
+To create a table, click on the View actions icon next to the fruit_store dataset and select Open.
+
+Add the following details for the table:
+
+Source: Choose Google Cloud Storage in the Create table from dropdown.
+
+Select file from GCS bucket: gs://data-insights-course/labs/optimizing-for-performance/shopping_cart.json File format: JSONL (Newline delimited JSON)
+
+Schema: Check Auto detect (Schema and input parameters).
+
+Call the new table "fruit_details".
+
+Click Create table.
+
+
+
+Creating your own arrays with ARRAY_AGG()
+
+SELECT
+  fullVisitorId,
+  date,
+  v2ProductName,
+  pageTitle
+  FROM `data-to-insights.ecommerce.all_sessions`
+WHERE visitId = 1501570398
+ORDER BY date
+
+
+Now, we will use the ARRAY_AGG() function to aggregate our string values into an array. Copy and paste the below query to explore this public dataset:
+
+SELECT
+  fullVisitorId,
+  date,
+  ARRAY_AGG(v2ProductName) AS products_viewed,
+  ARRAY_AGG(pageTitle) AS pages_viewed
+  FROM `data-to-insights.ecommerce.all_sessions`
+WHERE visitId = 1501570398
+GROUP BY fullVisitorId, date
+ORDER BY date
+
+Next, we will use the ARRAY_LENGTH() function to count the number of pages and products that were viewed.
+
+SELECT
+  fullVisitorId,
+  date,
+  ARRAY_AGG(v2ProductName) AS products_viewed,
+  ARRAY_LENGTH(ARRAY_AGG(v2ProductName)) AS num_products_viewed,
+  ARRAY_AGG(pageTitle) AS pages_viewed,
+  ARRAY_LENGTH(ARRAY_AGG(pageTitle)) AS num_pages_viewed
+  FROM `data-to-insights.ecommerce.all_sessions`
+WHERE visitId = 1501570398
+GROUP BY fullVisitorId, date
+ORDER BY date
+
+
+Next, lets deduplicate the pages and products so we can see how many unique products were viewed. We'll simply add DISTINCT to our ARRAY_AGG()
+
+SELECT
+  fullVisitorId,
+  date,
+  ARRAY_AGG(DISTINCT v2ProductName) AS products_viewed,
+  ARRAY_LENGTH(ARRAY_AGG(DISTINCT v2ProductName)) AS distinct_products_viewed,
+  ARRAY_AGG(DISTINCT pageTitle) AS pages_viewed,
+  ARRAY_LENGTH(ARRAY_AGG(DISTINCT pageTitle)) AS distinct_pages_viewed
+  FROM `data-to-insights.ecommerce.all_sessions`
+WHERE visitId = 1501570398
+GROUP BY fullVisitorId, date
+ORDER BY date
+
+Recap
+
+You can do some pretty useful things with arrays like:
+
+finding the number of elements with ARRAY_LENGTH(<array>)
+deduplicating elements with ARRAY_AGG(DISTINCT <field>)
+ordering elements with ARRAY_AGG(<field> ORDER BY <field>)
+limiting ARRAY_AGG(<field> LIMIT 5)
+
+
+Querying datasets that already have ARRAYs
+
+SELECT
+  *
+FROM `bigquery-public-data.google_analytics_sample.ga_sessions_20170801`
+WHERE visitId = 1501570398
+
+The amount of fields available in the Google Analytics schema can be overwhelming for our analysis. Let's try to query just the visit and page name fields like we did before.
+
+You will get an error: Cannot access field product on a value with type ARRAY> at [5:8]
+
+Before we can query REPEATED fields (arrays) normally, you must first break the arrays back into rows.
+
+For example, the array for hits.page.pageTitle is stored currently as a single row like:
+
+How do we do that with SQL? Answer: Use the UNNEST() function on your array field:
+
+SELECT DISTINCT
+  visitId,
+  h.page.pageTitle
+FROM `bigquery-public-data.google_analytics_sample.ga_sessions_20170801`,
+UNNEST(hits) AS h
+WHERE visitId = 1501570398
+LIMIT 10
+
+
+
+Introduction to STRUCTs
+You may have wondered why the field alias hit.page.pageTitle looks like three fields in one separated by periods. Just as ARRAY values give you the flexibility to go deep into the granularity of your fields, another data type allows you to go wide in your schema by grouping related fields together. That SQL data type is the STRUCT data type.
+
+The easiest way to think about a STRUCT is to consider it conceptually like a separate table that is already pre-joined into your main table.
+
+A STRUCT can have:
+
+one or many fields in it
+the same or different data types for each field
+it's own alias
+Sounds just like a table right?
+
+Let's explore a dataset with STRUCTs
+Under Explorer find the bigquery-public-data dataset (if it's not present already, use this link to pin the dataset)
+
+Click open bigquery-public-data
+
+Find and open google_analytics_sample
+
+Click the ga_sessions table
+
+Start scrolling through the schema and answer the following question by using the find feature of your brower (i.e. CTRL + F)
+
+As you can imagine, there is an incredible amount of website session data stored for a modern ecommerce website. The main advantage of having 32 STRUCTs in a single table is it allows you to run queries like this one without having to do any JOINs:
+
+SELECT
+  visitId,
+  totals.*,
+  device.*
+FROM `bigquery-public-data.google_analytics_sample.ga_sessions_20170801`
+WHERE visitId = 1501570398
+LIMIT 10
+
+Practice with STRUCTs and ARRAYs
+
+The next dataset will be lap times of runners around the track. Each lap will be called a "split".
+
+With this query, try out the STRUCT syntax and note the different field types within the struct container:
+
+#standardSQL
+SELECT STRUCT("Rudisha" as name, 23.4 as split) as runner
+
+#standardSQL
+SELECT STRUCT("Rudisha" as name, [23.4, 26.3, 26.4, 26.1] as splits) AS runner
+
+
+Practice ingesting JSON data
+
+Create a new dataset titled racing.
+
+Create a new table titled race_results.
+
+Select file from GCS bucket: gs://data-insights-course/labs/optimizing-for-performance/race_results.json
+
+File format: JSON (Newline delimited)
+
+Edit Schema then move the Edit as text slider and add the following:
+
+[
+    {
+        "name": "race",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "participants",
+        "type": "RECORD",
+        "mode": "REPEATED",
+        "fields": [
+            {
+                "name": "name",
+                "type": "STRING",
+                "mode": "NULLABLE"
+            },
+            {
+                "name": "splits",
+                "type": "FLOAT",
+                "mode": "REPEATED"
+            }
+        ]
+    }
+]

@@ -1,0 +1,289 @@
+Running Apache Spark jobs on Cloud Dataproc
+
+Overview
+In this lab you will learn how to migrate Apache Spark code to Cloud Dataproc. You will follow a sequence of steps progressively moving more of the job components over to GCP services:
+
+Run original Spark code on Cloud Dataproc (Lift and Shift)
+
+Replace HDFS with Cloud Storage (cloud-native)
+
+Automate everything so it runs on job-specific clusters (cloud-optimized)
+
+Objectives
+In this lab you will learn how to:
+
+Migrate existing Spark jobs to Cloud Dataproc
+
+Modify Spark jobs to use Cloud Storage instead of HDFS
+
+Optimize Spark jobs to run on Job specific clusters
+
+What will you use?
+Cloud Dataproc
+
+Apache Spark
+
+
+Clone the source repository for the lab
+
+git -C ~ clone https://github.com/GoogleCloudPlatform/training-data-analyst
+
+To locate the default Cloud Storage bucket used by Cloud Dataproc enter the following command in Cloud Shell:
+
+export DP_STORAGE="gs://$(gcloud dataproc clusters describe sparktodp --region=us-central1 --format=json | jq -r '.config.configBucket')"
+
+To copy the sample notebooks into the Jupyter working folder enter the following command in Cloud Shell:
+
+gsutil -m cp ~/training-data-analyst/quests/sparktobq/*.ipynb $DP_STORAGE/notebooks/jupyter
+
+The first code cell fetches the source data file, which is an extract from the KDD Cup competition from the Knowledge, Discovery, and Data (KDD) conference in 1999. The data relates to computer intrusion detection events.
+
+!wget https://archive.ics.uci.edu/ml/machine-learning-databases/kddcup99-mld/kddcup.data_10_percent.gz
+
+!hadoop fs -put kddcup* /
+
+In the third code cell, the command lists contents of the default directory in the cluster's HDFS file system.
+
+!hadoop fs -ls /
+
+The data are gzipped CSV files. In Spark, these can be read directly using the textFile method and then parsed by splitting each row on commas.
+
+The Python Spark code starts in cell In[4]. In this cell Spark SQL is initialized and Spark is used to read in the source data as text and then returns the first 5 rows.
+
+from pyspark.sql import SparkSession, SQLContext, Row
+spark = SparkSession.builder.appName("kdd").getOrCreate()
+sc = spark.sparkContext
+data_file = "hdfs:///kddcup.data_10_percent.gz"
+raw_rdd = sc.textFile(data_file).cache()
+raw_rdd.take(5)
+
+In cell In [5] each row is split, using , as a delimiter and parsed using a prepared inline schema in the code.
+
+csv_rdd = raw_rdd.map(lambda row: row.split(","))
+parsed_rdd = csv_rdd.map(lambda r: Row(
+    duration=int(r[0]),
+    protocol_type=r[1],
+    service=r[2],
+    flag=r[3],
+    src_bytes=int(r[4]),
+    dst_bytes=int(r[5]),
+    wrong_fragment=int(r[7]),
+    urgent=int(r[8]),
+    hot=int(r[9]),
+    num_failed_logins=int(r[10]),
+    num_compromised=int(r[12]),
+    su_attempted=r[14],
+    num_root=int(r[15]),
+    num_file_creations=int(r[16]),
+    label=r[-1]
+    )
+)
+parsed_rdd.take(5)
+
+
+Spark analysis
+In cell In [6] a Spark SQL context is created and a Spark dataframe using that context is created using the parsed input data from the previous stage. Row data can be selected and displayed using the dataframe's .show() method to output a view summarizing a count of selected fields.
+
+
+sqlContext = SQLContext(sc)
+df = sqlContext.createDataFrame(parsed_rdd)
+connections_by_protocol = df.groupBy('protocol_type').count().orderBy('count', ascending=False)
+connections_by_protocol.show()
+
+SparkSQL can also be used to query the parsed data stored in the Dataframe. In cell In [7] a temporary table (connections) is registered that is then referenced inside the subsequent SparkSQL SQL query statement.
+
+df.registerTempTable("connections")
+attack_stats = sqlContext.sql("""
+    SELECT
+      protocol_type,
+      CASE label
+        WHEN 'normal.' THEN 'no attack'
+        ELSE 'attack'
+      END AS state,
+      COUNT(*) as total_freq,
+      ROUND(AVG(src_bytes), 2) as mean_src_bytes,
+      ROUND(AVG(dst_bytes), 2) as mean_dst_bytes,
+      ROUND(AVG(duration), 2) as mean_duration,
+      SUM(num_failed_logins) as total_failed_logins,
+      SUM(num_compromised) as total_compromised,
+      SUM(num_file_creations) as total_file_creations,
+      SUM(su_attempted) as total_root_attempts,
+      SUM(num_root) as total_root_acceses
+    FROM connections
+    GROUP BY protocol_type, state
+    ORDER BY 3 DESC
+    """)
+attack_stats.show()
+
+The last cell, In [8] uses the %matplotlib inline Jupyter magic function to redirect matplotlib to render a graphic figure inline in the notebook instead of just dumping the data into a variable. This cell displays a bar chart using the attack_stats query from the previous step.
+
+%matplotlib inline
+ax = attack_stats.toPandas().plot.bar(x='protocol_type', subplots=True, figsize=(10,25))
+
+Part 2: Separate Compute and Storage
+
+export PROJECT_ID=$(gcloud info --format='value(config.project)')
+gsutil mb gs://$PROJECT_ID
+
+wget https://archive.ics.uci.edu/ml/machine-learning-databases/kddcup99-mld/kddcup.data_10_percent.gz
+gsutil cp kddcup.data_10_percent.gz gs://$PROJECT_ID/
+
+from pyspark.sql import SparkSession, SQLContext, Row
+spark = SparkSession.builder.appName("kdd").getOrCreate()
+sc = spark.sparkContext
+data_file = "hdfs:///kddcup.data_10_percent.gz"
+raw_rdd = sc.textFile(data_file).cache()
+raw_rdd.take(5)
+
+Replace the contents of cell In [4] with the following code. The only change here is create a variable to store a Cloud Storage bucket name and then to point the data_file to the bucket we used to store the source data on Cloud Storage.
+
+from pyspark.sql import SparkSession, SQLContext, Row
+gcs_bucket='[Your-Bucket-Name]'
+spark = SparkSession.builder.appName("kdd").getOrCreate()
+sc = spark.sparkContext
+data_file = "gs://"+gcs_bucket+"//kddcup.data_10_percent.gz"
+raw_rdd = sc.textFile(data_file).cache()
+raw_rdd.take(5)
+
+Deploy Spark Jobs
+
+
+Optimize Spark jobs to run on Job specific clusters.
+You now create a standalone Python file, that can be deployed as a Cloud Dataproc Job, that will perform the same functions as this notebook. To do this you add magic commands to the Python cells in a copy of this notebook to write the cell contents out to a file. You will also add an input parameter handler to set the storage bucket location when the Python script is called to make the code more portable.
+
+In the De-couple-storage Jupyter Notebook menu, click File and select Make a Copy.
+
+When the copy opens, click the De-couple-storage-Copy1 and rename it to PySpark-analysis-file.
+
+Open the Jupyter tab for De-couple-storage.
+
+Click File and then Save and checkpoint to save the notebook.
+
+Click File and then Close and Halt to shutdown the notebook.
+
+If you are prompted to confirm that you want to close the notebook click Leave or Cancel.
+
+Switch back to the PySpark-analysis-file Jupyter Notebook tab in your browser, if necessary.
+
+Click the first cell at the top of the notebook.
+
+Click Insert and select Insert Cell Above.
+
+Paste the following library import and parameter handling code into this new first code cell:
+
+%%writefile spark_analysis.py
+import matplotlib
+matplotlib.use('agg')
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--bucket", help="bucket for input and output")
+args = parser.parse_args()
+BUCKET = args.bucket
+
+The %%writefile spark_analysis.py Jupyter magic command creates a new output file to contain your standalone python script. You will add a variation of this to the remaining cells to append the contents of each cell to the standalone script file.
+
+This code also imports the matplotlib module and explicitly sets the default plotting backend via matplotlib.use('agg') so that the plotting code runs outside of a Jupyter notebook.
+
+
+For the remaining cells insert %%writefile -a spark_analysis.py at the start of each Python code cell. These are the five cells labelled In [x].
+
+%%writefile -a spark_analysis.py
+
+%%writefile -a spark_analysis.py
+from pyspark.sql import SparkSession, SQLContext, Row
+spark = SparkSession.builder.appName("kdd").getOrCreate()
+sc = spark.sparkContext
+data_file = "gs://{}/kddcup.data_10_percent.gz".format(BUCKET)
+raw_rdd = sc.textFile(data_file).cache()
+#raw_rdd.take(5)
+
+Repeat this step, inserting %%writefile -a spark_analysis.py at the start of each code cell until you reach the end.
+
+In the last cell, where the Pandas bar chart is plotted remove the %matplotlib inline magic command.
+
+Note: You must remove this inline matplotlib Jupyter magic directive or your script will fail when you run it.
+
+Make sure you have selected the last code cell in the notebook then, in the menu bar, click Insert and select Insert Cell Below.
+
+Paste the following code into the new cell.
+
+%%writefile -a spark_analysis.py
+ax[0].get_figure().savefig('report.png');
+
+Add another new cell at the end of the notebook and paste in the following:
+
+%%writefile -a spark_analysis.py
+import google.cloud.storage as gcs
+bucket = gcs.Client().get_bucket(BUCKET)
+for blob in bucket.list_blobs(prefix='sparktodp/'):
+    blob.delete()
+bucket.blob('sparktodp/report.png').upload_from_filename('report.png')
+
+Add a new cell at the end of the notebook and paste in the following:
+
+%%writefile -a spark_analysis.py
+connections_by_protocol.write.format("csv").mode("overwrite").save(
+    "gs://{}/sparktodp/connections_by_protocol".format(BUCKET))
+
+    Test Automation
+    You now test that the PySpark code runs successfully as a file by calling the local copy from inside the notebook, passing in a parameter to identify the storage bucket you created earlier that stores the input data for this job. The same bucket will be used to store the report data files produced by the script.
+
+    In the PySpark-analysis-file notebook add a new cell at the end of the notebook and paste in the following:
+
+    BUCKET_list = !gcloud info --format='value(config.project)'
+    BUCKET=BUCKET_list[0]
+    print('Writing to {}'.format(BUCKET))
+    !/opt/conda/miniconda3/bin/python spark_analysis.py --bucket=$BUCKET
+
+This code assumes that you have followed the earlier instructions and created a Cloud Storage Bucket using your lab Project ID as the Storage Bucket name. If you used a different name modify this code to set the BUCKET variable to the name you used.
+
+Add a new cell at the end of the notebook and paste in the following:
+
+!gsutil ls gs://$BUCKET/sparktodp/**
+
+This lists the script output files that have been saved to your Cloud Storage bucket.
+
+To save a copy of the Python file to persistent storage, add a new cell and paste in the following:
+
+!gsutil cp spark_analysis.py gs://$BUCKET/sparktodp/spark_analysis.py
+
+Run the Analysis Job from Cloud Shell.
+
+gsutil cp gs://$PROJECT_ID/sparktodp/spark_analysis.py spark_analysis.py
+
+nano submit_onejob.sh
+
+#!/bin/bash
+gcloud dataproc jobs submit pyspark \
+       --cluster sparktodp \
+       --region us-central1 \
+       spark_analysis.py \
+       -- --bucket=$1
+
+Press CTRL+X then Y and Enter key to exit and save.
+
+Make the script executable:
+
+chmod +x submit_onejob.sh
+
+Launch the PySpark Analysis job:
+
+./submit_onejob.sh $PROJECT_ID
+
+n the Cloud Console tab navigate to the Dataproc > Clusters page if it is not already open.
+
+Click Jobs.
+
+Click the name of the job that is listed. You can monitor progress here as well as from the Cloud shell. Wait for the Job to complete successfully.
+
+Navigate to your storage bucket and note that the output report, /sparktodp/report.png has an updated time-stamp indicating that the stand-alone job has completed successfully.
+
+The storage bucket used by this Job for input and output data storage is the bucket that is used just the Project ID as the name.
+
+Navigate back to the Dataproc > Clusters page.
+
+Select the sparktodp cluster and click Delete. You don't need it any more.
+
+Click CONFIRM.
+
+Close the Jupyter tabs in your browser.
