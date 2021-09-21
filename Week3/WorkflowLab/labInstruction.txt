@@ -1,0 +1,14 @@
+Overview
+Workflows are a common theme in data analytics - they involve ingesting, transforming, and analyzing data to figure out the meaningful information within. In Google Cloud Platform (GCP), the tool for hosting workflows is Cloud Composer which is a hosted version of the popular open source workflow tool Apache Airflow.
+
+In this lab, you use the GCP Console to set up a Cloud Composer environment. You then use Cloud Composer to go through a simple workflow that verifies the existence of a data file, creates a Cloud Dataproc cluster, runs an Apache Hadoop wordcount job on the Cloud Dataproc cluster, and deletes the Cloud Dataproc cluster afterwards.
+
+What you'll do
+Use GCP Console to create the Cloud Composer environment
+
+View and run the DAG (Directed Acyclic Graph) in the Airflow web interface
+
+View the results of the wordcount job in storage.
+
+
+Create Cloud Composer environment
