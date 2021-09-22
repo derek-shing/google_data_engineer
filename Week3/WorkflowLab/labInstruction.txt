@@ -12,3 +12,5 @@ View the results of the wordcount job in storage.
 
 
 Create Cloud Composer environment
+
+Create a Cloud Storage bucket
