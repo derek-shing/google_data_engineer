@@ -33,3 +33,8 @@ p|beam.io.WriteToBigQery(
 cityAndZipcodes = p|beam.Map(lambda field:(field[0], field[1]))
 
 group = cityAndZipcodes | beam.GroupByKey()
+
+
+#MapReduce
+
+#side window 
