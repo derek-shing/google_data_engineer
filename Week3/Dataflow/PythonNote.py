@@ -37,4 +37,4 @@ group = cityAndZipcodes | beam.GroupByKey()
 
 #MapReduce
 
-#side window 
+#side window
