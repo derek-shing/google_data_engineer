@@ -1,0 +1,4 @@
+CloudFunction read data from API
+ingest data to PubSub
+PubSub to DataFlow
+DataFlow to Bigquery
